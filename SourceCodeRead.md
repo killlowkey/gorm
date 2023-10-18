@@ -17,12 +17,10 @@
 8. association: 关系操作 hasOne、belongTo、HasMany、ManyToMany
 9. callbacks.go：select、update、insert、delete 等回调函数统一入口
 10. chainable_api.go: 流式操作，进行语句整合操作，调用里面任何方法，返回 db 对象，返回的对象里面还可以调用对应的流式操作
-    > select、table、where、order by、limit、offset、group by、having、join、left join、right join、inner join、cross join、
-    > where、or、and、not、in、not in、like、not like、between、not between、is null、is not null、in、not in、like、not like
+    > select、table、where、order by、limit、offset、group by、having、join、left join、right join、inner join、cross join、where、or、and、not、in、not in、like、not like、between、not between、is null、is not null、in、not in、like、not like
 11. errors.go: gorm 使用的错误类型
 12. finisher_api.go: 终止操作，调用里面任何一个方法， db 对象会执行对应的 sql 语句并返回值
-    > first、last、take、create、update、delete、exec、beginTransaction、commit、rollback 等
-    > 可以通过 DB 的 Error 和 RowsAffected 判断执行结果
+    > first、last、take、create、update、delete、exec、beginTransaction、commit、rollback 等, 可以通过 DB 的 Error 和 RowsAffected 判断执行结果
 13. gorm.go: 配置、数据库连接、session 创建等
 14. interfaces.go: 全局接口定义
 15. migrator.go: 迁移操作接口定义，交由具体的数据库驱动来实现
@@ -34,7 +32,7 @@
 
 ## 设计核心思想
 GORM 主要是围绕着下面几个类型来进行设计
-1. gorm.callback: 实现数据库的 Insert、Update、Select、Delete 操作和自定义的回调操作
+1. gorm.callback: 实现数据库的 Insert、Update、Select、Delete 操作和自定义的回调操作(详情查看 RegisterDefaultCallbacks 方法)
    > 比如一个 Insert 操作会有一组 callback 操作，在实际运行中，所有的 callback 都会被封装成 func(db *gorm.DB) 函数，插入前需要开启事务，
    > 调用一些 Hook 函数，插入后需要检测是否提交事务，包含具体的插入也是通过 callback 来实现。
    > 不同的数据库，在 SQL 语法和数据类型上有些许差异，这些差异之处被称为“方言”，针对这些方言，GORM 通过数据库驱动实现 Dialector 接口来定制化某些操作
