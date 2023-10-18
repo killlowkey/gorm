@@ -14,9 +14,14 @@ import (
 
 func Query(db *gorm.DB) {
 	if db.Error == nil {
+		// 构建查询语句
 		BuildQuerySQL(db)
 
+		// db.DryRun 为 true 则不进行真实查询，只是为了获取生成后的 SQL 语句
 		if !db.DryRun && db.Error == nil {
+			// 查询操作
+			// 1. db.Statement.SQL.String()：sql 语句，还未绑定参数，select * from users where id = ?
+			// 2. db.Statement.Vars：SQL 需要绑定的参数, 10
 			rows, err := db.Statement.ConnPool.QueryContext(db.Statement.Context, db.Statement.SQL.String(), db.Statement.Vars...)
 			if err != nil {
 				db.AddError(err)
@@ -25,11 +30,15 @@ func Query(db *gorm.DB) {
 			defer func() {
 				db.AddError(rows.Close())
 			}()
+			// 扫描数据库返回的数据到 struct model 中
 			gorm.Scan(rows, db, 0)
 		}
 	}
 }
 
+// BuildQuerySQL 构建查询 SQL 语句
+// SQL 在 GORM 设计中采用 clause.Interface 进行表示，from、where、join、group by、having、order by、limit、offset 都是 clause.Interface 类型
+// 这种设计是为了分而治之，每个 clause.Interface 负责自己的 SQL 构建
 func BuildQuerySQL(db *gorm.DB) {
 	if db.Statement.Schema != nil {
 		for _, c := range db.Statement.Schema.QueryClauses {
@@ -37,10 +46,12 @@ func BuildQuerySQL(db *gorm.DB) {
 		}
 	}
 
+	// 还未构建过 SQL 语句
 	if db.Statement.SQL.Len() == 0 {
 		db.Statement.SQL.Grow(100)
 		clauseSelect := clause.Select{Distinct: db.Statement.Distinct}
 
+		// db.Statement.ReflectValue 为 model struct
 		if db.Statement.ReflectValue.Kind() == reflect.Struct && db.Statement.ReflectValue.Type() == db.Statement.Schema.ModelType {
 			var conds []clause.Expression
 			for _, primaryField := range db.Statement.Schema.PrimaryFields {
@@ -54,7 +65,7 @@ func BuildQuerySQL(db *gorm.DB) {
 			}
 		}
 
-		if len(db.Statement.Selects) > 0 {
+		if len(db.Statement.Selects) > 0 { // 选择的列：select id,name,age
 			clauseSelect.Columns = make([]clause.Column, len(db.Statement.Selects))
 			for idx, name := range db.Statement.Selects {
 				if db.Statement.Schema == nil {
@@ -65,7 +76,8 @@ func BuildQuerySQL(db *gorm.DB) {
 					clauseSelect.Columns[idx] = clause.Column{Name: name, Raw: true}
 				}
 			}
-		} else if db.Statement.Schema != nil && len(db.Statement.Omits) > 0 {
+		} else if db.Statement.Schema != nil && len(db.Statement.Omits) > 0 { // 包含忽略字段
+			// 获取需要查询的列（去除了忽略字段），比如 user 有 id,name,age 字段，当前忽略 age 字段，只需要查询 id 和 name 字段
 			selectColumns, _ := db.Statement.SelectAndOmitColumns(false, false)
 			clauseSelect.Columns = make([]clause.Column, 0, len(db.Statement.Schema.DBNames))
 			for _, dbName := range db.Statement.Schema.DBNames {
@@ -73,8 +85,9 @@ func BuildQuerySQL(db *gorm.DB) {
 					clauseSelect.Columns = append(clauseSelect.Columns, clause.Column{Table: db.Statement.Table, Name: dbName})
 				}
 			}
-		} else if db.Statement.Schema != nil && db.Statement.ReflectValue.IsValid() {
+		} else if db.Statement.Schema != nil && db.Statement.ReflectValue.IsValid() { // 大多数情况下，都是走到该接口
 			queryFields := db.QueryFields
+			// 校验
 			if !queryFields {
 				switch db.Statement.ReflectValue.Kind() {
 				case reflect.Struct:
@@ -87,9 +100,11 @@ func BuildQuerySQL(db *gorm.DB) {
 			if queryFields {
 				stmt := gorm.Statement{DB: db}
 				// smaller struct
+				// 解析 model
 				if err := stmt.Parse(db.Statement.Dest); err == nil && (db.QueryFields || stmt.Schema.ModelType != db.Statement.Schema.ModelType) {
 					clauseSelect.Columns = make([]clause.Column, len(stmt.Schema.DBNames))
 
+					// 设置 select 语句中需要 select 字段
 					for idx, dbName := range stmt.Schema.DBNames {
 						clauseSelect.Columns[idx] = clause.Column{Table: db.Statement.Table, Name: dbName}
 					}
@@ -98,12 +113,15 @@ func BuildQuerySQL(db *gorm.DB) {
 		}
 
 		// inline joins
+		// select * from users 这种就是内查询
 		fromClause := clause.From{}
 		if v, ok := db.Statement.Clauses["FROM"].Expression.(clause.From); ok {
 			fromClause = v
 		}
 
+		// db.Statement.Joins 连接其它表
 		if len(db.Statement.Joins) != 0 || len(fromClause.Joins) != 0 {
+			// select * 情况
 			if len(db.Statement.Selects) == 0 && len(db.Statement.Omits) == 0 && db.Statement.Schema != nil {
 				clauseSelect.Columns = make([]clause.Column, len(db.Statement.Schema.DBNames))
 				for idx, dbName := range db.Statement.Schema.DBNames {
@@ -111,6 +129,7 @@ func BuildQuerySQL(db *gorm.DB) {
 				}
 			}
 
+			// 构建连接查询
 			specifiedRelationsName := make(map[string]interface{})
 			for _, join := range db.Statement.Joins {
 				if db.Statement.Schema != nil {

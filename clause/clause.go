@@ -18,7 +18,7 @@ type Writer interface {
 // Builder builder interface
 type Builder interface {
 	Writer
-	WriteQuoted(field interface{})
+	WriteQuoted(field interface{}) // 需要注意数据库方言
 	AddVar(Writer, ...interface{})
 	AddError(error) error
 }
@@ -75,9 +75,9 @@ var (
 
 // Column quote with name
 type Column struct {
-	Table string
-	Name  string
-	Alias string
+	Table string // 表名
+	Name  string // 字段名
+	Alias string // 别名
 	Raw   bool
 }
 

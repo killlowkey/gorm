@@ -18,43 +18,43 @@ import (
 	"gorm.io/gorm/utils"
 )
 
-// Statement statement
+// Statement sql statement
 type Statement struct {
 	*DB
 	TableExpr            *clause.Expr
-	Table                string
-	Model                interface{}
+	Table                string      // 表名
+	Model                interface{} // gorm 设置 model
 	Unscoped             bool
-	Dest                 interface{}
-	ReflectValue         reflect.Value
+	Dest                 interface{}   // 查询的结果集，只设置了该值，那么 Dest 等价于 Table
+	ReflectValue         reflect.Value // 为 model 或目标值的反射值
 	Clauses              map[string]clause.Clause
 	BuildClauses         []string
 	Distinct             bool
-	Selects              []string // selected columns
-	Omits                []string // omit columns
-	Joins                []join
-	Preloads             map[string][]interface{}
-	Settings             sync.Map
-	ConnPool             ConnPool
-	Schema               *schema.Schema
+	Selects              []string                 // selected columns，选择的列
+	Omits                []string                 // omit columns，忽略的列
+	Joins                []join                   // 连接查询
+	Preloads             map[string][]interface{} // 预先加载的关联
+	Settings             sync.Map                 // 设置
+	ConnPool             ConnPool                 // 数据库连接池
+	Schema               *schema.Schema           // 表结构
 	Context              context.Context
 	RaiseErrorOnNotFound bool
-	SkipHooks            bool
-	SQL                  strings.Builder
-	Vars                 []interface{}
-	CurDestIndex         int
+	SkipHooks            bool            // 是否跳过钩子函数
+	SQL                  strings.Builder // 拼接 SQL
+	Vars                 []interface{}   // 在 SQL 语句中绑定的值
+	CurDestIndex         int             // 查询结果为切片和数组，则为当前设置的索引，详情看 callMethod 方法
 	attrs                []interface{}
 	assigns              []interface{}
 	scopes               []func(*DB) *DB
 }
 
 type join struct {
-	Name     string
-	Conds    []interface{}
+	Name     string        // 连接的表名
+	Conds    []interface{} // 连接条件
 	On       *clause.Where
 	Selects  []string
 	Omits    []string
-	JoinType clause.JoinType
+	JoinType clause.JoinType // 连接类型 左连接、右连接、跨表、内连接
 }
 
 // StatementModifier statement modifier interface
@@ -468,6 +468,7 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 func (stmt *Statement) Build(clauses ...string) {
 	var firstClauseWritten bool
 
+	// 遍历所有 clauses，调用其 build 方法
 	for _, name := range clauses {
 		if c, ok := stmt.Clauses[name]; ok {
 			if firstClauseWritten {
@@ -484,6 +485,7 @@ func (stmt *Statement) Build(clauses ...string) {
 	}
 }
 
+// Parse 解析 model
 func (stmt *Statement) Parse(value interface{}) (err error) {
 	return stmt.ParseWithSpecialTableName(value, "")
 }

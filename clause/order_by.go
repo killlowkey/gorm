@@ -1,8 +1,8 @@
 package clause
 
 type OrderByColumn struct {
-	Column  Column
-	Desc    bool
+	Column  Column // 排序字段
+	Desc    bool   // 降序，数据库默认是升序排序
 	Reorder bool
 }
 

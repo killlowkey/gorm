@@ -1,6 +1,7 @@
 package clause
 
 // GroupBy group by clause
+// group by name having name = ”
 type GroupBy struct {
 	Columns []Column
 	Having  []Expression

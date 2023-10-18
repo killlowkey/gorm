@@ -10,12 +10,14 @@ const (
 )
 
 // Join clause for from
+// select * from a left join b on a.m_id = b.m_id;
+// select * from a left join b using m_id;
 type Join struct {
-	Type       JoinType
-	Table      Table
-	ON         Where
-	Using      []string
-	Expression Expression
+	Type       JoinType   // 表连接类型
+	Table      Table      // 连接的表
+	ON         Where      // 连接条件
+	Using      []string   // a表和b表有相同字段，可以作为连接条件 using m_id
+	Expression Expression // 自定义 join，参考 joins_test.go
 }
 
 func (join Join) Build(builder Builder) {

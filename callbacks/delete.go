@@ -118,6 +118,7 @@ func Delete(config *Config) func(db *gorm.DB) {
 			return
 		}
 
+		// 数据库每张表就是一个 Schema
 		if db.Statement.Schema != nil {
 			for _, c := range db.Statement.Schema.DeleteClauses {
 				db.Statement.AddClause(c)

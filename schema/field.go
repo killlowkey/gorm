@@ -50,43 +50,44 @@ const (
 )
 
 // Field is the representation of model schema's field
+// model 字段描述，详情查看 Schema#ParseField 方法
 type Field struct {
-	Name                   string
-	DBName                 string
-	BindNames              []string
-	DataType               DataType
-	GORMDataType           DataType
-	PrimaryKey             bool
-	AutoIncrement          bool
-	AutoIncrementIncrement int64
-	Creatable              bool
-	Updatable              bool
-	Readable               bool
-	AutoCreateTime         TimeType
-	AutoUpdateTime         TimeType
-	HasDefaultValue        bool
-	DefaultValue           string
-	DefaultValueInterface  interface{}
-	NotNull                bool
-	Unique                 bool
-	Comment                string
-	Size                   int
-	Precision              int
-	Scale                  int
-	IgnoreMigration        bool
-	FieldType              reflect.Type
-	IndirectFieldType      reflect.Type
-	StructField            reflect.StructField
-	Tag                    reflect.StructTag
-	TagSettings            map[string]string
-	Schema                 *Schema
+	Name                   string              // 字段名称
+	DBName                 string              // 数据库字段名称
+	BindNames              []string            // 绑定的名称
+	DataType               DataType            // 字段数据类型
+	GORMDataType           DataType            // 在 model 表示数据类型？
+	PrimaryKey             bool                // 是否为主键
+	AutoIncrement          bool                // 是否为自增
+	AutoIncrementIncrement int64               // 主键自增索引，数据库当前为10，这里为2，下次插入主键索引为 12？
+	Creatable              bool                // 可插入
+	Updatable              bool                // 可更新
+	Readable               bool                // 可读
+	AutoCreateTime         TimeType            // 插入数据时，CreatedAt 时间类型
+	AutoUpdateTime         TimeType            // 更新数据时，UpdatedAt 时间类型
+	HasDefaultValue        bool                // 是否有默认值
+	DefaultValue           string              // 默认值，通过 default tag 设置
+	DefaultValueInterface  interface{}         // 默认值，比如字段类型为 bool（默认值false）、int（默认值为0）
+	NotNull                bool                // 是否不为空
+	Unique                 bool                // 是否唯一
+	Comment                string              // 字段注释，从 tag 获取
+	Size                   int                 // 数据库该字段大小
+	Precision              int                 // 精度
+	Scale                  int                 // 规模？
+	IgnoreMigration        bool                // 是否忽略迁移
+	FieldType              reflect.Type        // 字段类型，指针或者struct
+	IndirectFieldType      reflect.Type        // 如果字段类型为指针，那么该类型为 element
+	StructField            reflect.StructField // 字段
+	Tag                    reflect.StructTag   // 字段 tag
+	TagSettings            map[string]string   // tag 一些字段设置，自增、主键、唯一这种
+	Schema                 *Schema             // 字段属于的 schema，schema（数据库表） 是 field（表字段） 集合
 	EmbeddedSchema         *Schema
 	OwnerSchema            *Schema
-	ReflectValueOf         func(context.Context, reflect.Value) reflect.Value
-	ValueOf                func(context.Context, reflect.Value) (value interface{}, zero bool)
-	Set                    func(context.Context, reflect.Value, interface{}) error
-	Serializer             SerializerInterface
-	NewValuePool           FieldNewValuePool
+	ReflectValueOf         func(context.Context, reflect.Value) reflect.Value                  // 反射获取字段值
+	ValueOf                func(context.Context, reflect.Value) (value interface{}, zero bool) // 获取字段值
+	Set                    func(context.Context, reflect.Value, interface{}) error             // 设置字段值
+	Serializer             SerializerInterface                                                 // 序列化器
+	NewValuePool           FieldNewValuePool                                                   // 池化
 }
 
 func (field *Field) BindName() string {
@@ -96,7 +97,8 @@ func (field *Field) BindName() string {
 // ParseField parses reflect.StructField to Field
 func (schema *Schema) ParseField(fieldStruct reflect.StructField) *Field {
 	var (
-		err        error
+		err error
+		// 解析字段的 gorm tag
 		tagSetting = ParseTagSetting(fieldStruct.Tag.Get("gorm"), ";")
 	)
 
@@ -193,21 +195,25 @@ func (schema *Schema) ParseField(fieldStruct reflect.StructField) *Field {
 		}
 	}
 
+	// 解析自增索引累加，比如当前数据库主键索引为 10，这里需要自增2，插入则为 12
 	if num, ok := field.TagSettings["AUTOINCREMENTINCREMENT"]; ok {
 		field.AutoIncrementIncrement, _ = strconv.ParseInt(num, 10, 64)
 	}
 
+	// 插入时默认值
 	if v, ok := field.TagSettings["DEFAULT"]; ok {
 		field.HasDefaultValue = true
 		field.DefaultValue = v
 	}
 
+	// 数据类型大小
 	if num, ok := field.TagSettings["SIZE"]; ok {
 		if field.Size, err = strconv.Atoi(num); err != nil {
 			field.Size = -1
 		}
 	}
 
+	// 类型精度 int2 int8 int16 int32 后面的数值代表精度
 	if p, ok := field.TagSettings["PRECISION"]; ok {
 		field.Precision, _ = strconv.Atoi(p)
 	}
@@ -220,6 +226,7 @@ func (schema *Schema) ParseField(fieldStruct reflect.StructField) *Field {
 	field.DefaultValue = strings.TrimSpace(field.DefaultValue)
 	skipParseDefaultValue := strings.Contains(field.DefaultValue, "(") &&
 		strings.Contains(field.DefaultValue, ")") || strings.ToLower(field.DefaultValue) == "null" || field.DefaultValue == ""
+	// 解析字段的默认值
 	switch reflect.Indirect(fieldValue).Kind() {
 	case reflect.Bool:
 		field.DataType = Bool

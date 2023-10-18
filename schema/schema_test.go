@@ -314,7 +314,17 @@ func TestCompositePrimaryKeyWithAutoIncrement(t *testing.T) {
 	}
 
 	prioritizedPrimaryField := schema.Field{
-		Name: "ProductID", DBName: "product_id", BindNames: []string{"ProductID"}, DataType: schema.Uint, PrimaryKey: true, Size: 64, HasDefaultValue: true, AutoIncrement: true, TagSettings: map[string]string{"PRIMARYKEY": "PRIMARYKEY", "AUTOINCREMENT": "AUTOINCREMENT"},
+		Name:       "ProductID",
+		DBName:     "product_id",
+		BindNames:  []string{"ProductID"},
+		DataType:   schema.Uint,
+		PrimaryKey: true, Size: 64,
+		HasDefaultValue: true,
+		AutoIncrement:   true,
+		TagSettings: map[string]string{
+			"PRIMARYKEY":    "PRIMARYKEY",
+			"AUTOINCREMENT": "AUTOINCREMENT",
+		},
 	}
 
 	product.Fields = []*schema.Field{product.PrioritizedPrimaryField}

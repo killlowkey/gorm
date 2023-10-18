@@ -56,6 +56,7 @@ type Reference struct {
 	OwnPrimaryKey bool
 }
 
+// parseRelation 解析关系
 func (schema *Schema) parseRelation(field *Field) *Relationship {
 	var (
 		err        error

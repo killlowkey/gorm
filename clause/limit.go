@@ -4,8 +4,8 @@ import "strconv"
 
 // Limit limit clause
 type Limit struct {
-	Limit  *int
-	Offset int
+	Limit  *int // 获取的记录数
+	Offset int  // 页数
 }
 
 // Name where clause name

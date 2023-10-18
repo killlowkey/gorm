@@ -17,32 +17,32 @@ import (
 var ErrUnsupportedDataType = errors.New("unsupported data type")
 
 type Schema struct {
-	Name                      string
+	Name                      string // Schema 名称
 	ModelType                 reflect.Type
-	Table                     string
+	Table                     string // 数据库表名
 	PrioritizedPrimaryField   *Field
-	DBNames                   []string
-	PrimaryFields             []*Field
+	DBNames                   []string // 数据库名
+	PrimaryFields             []*Field // 表主键字段
 	PrimaryFieldDBNames       []string
-	Fields                    []*Field
+	Fields                    []*Field // 表字段
 	FieldsByName              map[string]*Field
 	FieldsByBindName          map[string]*Field // embedded fields is 'Embed.Field'
 	FieldsByDBName            map[string]*Field
 	FieldsWithDefaultDBValue  []*Field // fields with default value assigned by database
 	Relationships             Relationships
-	CreateClauses             []clause.Interface
-	QueryClauses              []clause.Interface
-	UpdateClauses             []clause.Interface
-	DeleteClauses             []clause.Interface
-	BeforeCreate, AfterCreate bool
+	CreateClauses             []clause.Interface // 构建插入语句
+	QueryClauses              []clause.Interface // 构建查询语句
+	UpdateClauses             []clause.Interface // 构建更新语句
+	DeleteClauses             []clause.Interface // 构建删除语句
+	BeforeCreate, AfterCreate bool               // 是否存在插入前和插入后钩子
 	BeforeUpdate, AfterUpdate bool
 	BeforeDelete, AfterDelete bool
 	BeforeSave, AfterSave     bool
 	AfterFind                 bool
-	err                       error
+	err                       error // 存放查询期间错误
 	initialized               chan struct{}
-	namer                     Namer
-	cacheStore                *sync.Map
+	namer                     Namer     // 命名器，用于修改表、列、连接查询等名称
+	cacheStore                *sync.Map // 缓存
 }
 
 func (schema Schema) String() string {
@@ -185,6 +185,7 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 		return s, s.err
 	}
 
+	// 解析字段
 	for i := 0; i < modelType.NumField(); i++ {
 		if fieldStruct := modelType.Field(i); ast.IsExported(fieldStruct.Name) {
 			if field := schema.ParseField(fieldStruct); field.EmbeddedSchema != nil {
@@ -288,6 +289,7 @@ func ParseWithSpecialTableName(dest interface{}, cacheStore *sync.Map, namer Nam
 		}
 	}
 
+	// 检查 struct 回调方法签名类型
 	callbacks := []string{"BeforeCreate", "AfterCreate", "BeforeUpdate", "AfterUpdate", "BeforeSave", "AfterSave", "BeforeDelete", "AfterDelete", "AfterFind"}
 	for _, name := range callbacks {
 		if methodValue := modelValue.MethodByName(name); methodValue.IsValid() {

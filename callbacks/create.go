@@ -15,6 +15,7 @@ import (
 func BeforeCreate(db *gorm.DB) {
 	if db.Error == nil && db.Statement.Schema != nil && !db.Statement.SkipHooks && (db.Statement.Schema.BeforeSave || db.Statement.Schema.BeforeCreate) {
 		callMethod(db, func(value interface{}, tx *gorm.DB) (called bool) {
+			// 调用钩子方法
 			if db.Statement.Schema.BeforeSave {
 				if i, ok := value.(BeforeSaveInterface); ok {
 					called = true
@@ -35,6 +36,8 @@ func BeforeCreate(db *gorm.DB) {
 
 // Create create hook
 func Create(config *Config) func(db *gorm.DB) {
+	// 判断是否需要返回数据，使用的少，可以忽略
+	// INSERT INTO user("name") VALUES("ray") RETURNING id; 返回 id
 	supportReturning := utils.Contains(config.CreateClauses, "RETURNING")
 
 	return func(db *gorm.DB) {
@@ -60,10 +63,11 @@ func Create(config *Config) func(db *gorm.DB) {
 			}
 		}
 
+		// 构建 sql 语句
 		if db.Statement.SQL.Len() == 0 {
 			db.Statement.SQL.Grow(180)
-			db.Statement.AddClauseIfNotExists(clause.Insert{})
-			db.Statement.AddClause(ConvertToCreateValues(db.Statement))
+			db.Statement.AddClauseIfNotExists(clause.Insert{})          // insert statement
+			db.Statement.AddClause(ConvertToCreateValues(db.Statement)) // values statement
 
 			db.Statement.Build(db.Statement.BuildClauses...)
 		}
@@ -73,7 +77,7 @@ func Create(config *Config) func(db *gorm.DB) {
 			return
 		}
 
-		ok, mode := hasReturning(db, supportReturning)
+		ok, mode := hasReturning(db, supportReturning) // 是否包含返回值，比如返回插入 id
 		if ok {
 			if c, ok := db.Statement.Clauses["ON CONFLICT"]; ok {
 				if onConflict, _ := c.Expression.(clause.OnConflict); onConflict.DoNothing {
@@ -94,6 +98,7 @@ func Create(config *Config) func(db *gorm.DB) {
 			return
 		}
 
+		// 执行 SQL 语句
 		result, err := db.Statement.ConnPool.ExecContext(
 			db.Statement.Context, db.Statement.SQL.String(), db.Statement.Vars...,
 		)
@@ -102,10 +107,15 @@ func Create(config *Config) func(db *gorm.DB) {
 			return
 		}
 
+		// 影响行数，比如插入10条数据，都插入成功，影响行数是10
+		// 影响行数和插入 id 都会在数据库响应包中进行返回
+		// mc.affectedRows, _, n = readLengthEncodedInteger(data[1:])
+		// mc.insertId, _, m = readLengthEncodedInteger(data[1+n:])
 		db.RowsAffected, _ = result.RowsAffected()
 		if db.RowsAffected != 0 && db.Statement.Schema != nil &&
 			db.Statement.Schema.PrioritizedPrimaryField != nil &&
 			db.Statement.Schema.PrioritizedPrimaryField.HasDefaultValue {
+			// 获取插入 id
 			insertID, err := result.LastInsertId()
 			insertOk := err == nil && insertID > 0
 			if !insertOk {
@@ -114,7 +124,7 @@ func Create(config *Config) func(db *gorm.DB) {
 			}
 
 			switch db.Statement.ReflectValue.Kind() {
-			case reflect.Slice, reflect.Array:
+			case reflect.Slice, reflect.Array: // 数组
 				if config.LastInsertIDReversed {
 					for i := db.Statement.ReflectValue.Len() - 1; i >= 0; i-- {
 						rv := db.Statement.ReflectValue.Index(i)
@@ -142,6 +152,7 @@ func Create(config *Config) func(db *gorm.DB) {
 					}
 				}
 			case reflect.Struct:
+				// 设置值到 db.Statement.ReflectValue 中
 				_, isZero := db.Statement.Schema.PrioritizedPrimaryField.ValueOf(db.Statement.Context, db.Statement.ReflectValue)
 				if isZero {
 					db.AddError(db.Statement.Schema.PrioritizedPrimaryField.Set(db.Statement.Context, db.Statement.ReflectValue, insertID))
@@ -174,6 +185,8 @@ func AfterCreate(db *gorm.DB) {
 }
 
 // ConvertToCreateValues convert to create values
+// INSERT INTO user("name","age") VALUES (?, ?) 占位符上的值从 struct 获取
+// &User{"name":"ray","age":10} => INSERT INTO user("name","age") VALUES ("ray", 10)
 func ConvertToCreateValues(stmt *gorm.Statement) (values clause.Values) {
 	curTime := stmt.DB.NowFunc()
 
@@ -263,7 +276,7 @@ func ConvertToCreateValues(stmt *gorm.Statement) (values clause.Values) {
 					}
 				}
 			}
-		case reflect.Struct:
+		case reflect.Struct: // 重点关注这里，GORM 使用 struct 传值多
 			values.Values = [][]interface{}{make([]interface{}, len(values.Columns))}
 			for idx, column := range values.Columns {
 				field := stmt.Schema.FieldsByDBName[column.Name]

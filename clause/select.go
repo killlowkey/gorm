@@ -1,9 +1,10 @@
 package clause
 
 // Select select attrs when querying, updating, creating
+// SELECT DISTINCT column1, column2 FROM your_table;
 type Select struct {
-	Distinct   bool
-	Columns    []Column
+	Distinct   bool     // 确保每一行都是唯一的
+	Columns    []Column // 选择的列
 	Expression Expression
 }
 
@@ -24,6 +25,7 @@ func (s Select) Build(builder Builder) {
 			builder.WriteQuoted(column)
 		}
 	} else {
+		// 未设置选择的列，则 select 所有
 		builder.WriteByte('*')
 	}
 }
