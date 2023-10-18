@@ -20,7 +20,9 @@ func (db *DB) Create(value interface{}) (tx *DB) {
 	}
 
 	tx = db.getInstance()
+	// 设置目标值
 	tx.Statement.Dest = value
+	// 执行 sql
 	return tx.callbacks.Create().Execute(tx)
 }
 
@@ -70,6 +72,7 @@ func (db *DB) CreateInBatches(value interface{}, batchSize int) (tx *DB) {
 }
 
 // Save updates value in database. If value doesn't contain a matching primary key, value is inserted.
+// 更新数据库值，如果 value 不包含匹配的主键，则插入。
 func (db *DB) Save(value interface{}) (tx *DB) {
 	tx = db.getInstance()
 	tx.Statement.Dest = value
@@ -79,6 +82,9 @@ func (db *DB) Save(value interface{}) (tx *DB) {
 		reflectValue = reflect.Indirect(reflectValue)
 	}
 
+	// ON CONFLICT
+	// 处理唯一性约束或主键约束引起的冲突，当尝试插入一行数据时，如果数据库中已存在具有相同唯一键值的记录，就会发生冲突。
+	// INSERT INTO table_name (column1, column2) VALUES (value1, value2) ON CONFLICT (unique_column) DO UPDATE SET column1 = value1, column2 = value2;
 	switch reflectValue.Kind() {
 	case reflect.Slice, reflect.Array:
 		if _, ok := tx.Statement.Clauses["ON CONFLICT"]; !ok {
@@ -115,7 +121,9 @@ func (db *DB) Save(value interface{}) (tx *DB) {
 }
 
 // First finds the first record ordered by primary key, matching given conditions conds
+// 获取第一条记录，按照主键排序，匹配给定的条件
 func (db *DB) First(dest interface{}, conds ...interface{}) (tx *DB) {
+	// 按照主键排序且限制一条记录
 	tx = db.Limit(1).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: clause.PrimaryKey},
 	})
@@ -130,6 +138,7 @@ func (db *DB) First(dest interface{}, conds ...interface{}) (tx *DB) {
 }
 
 // Take finds the first record returned by the database in no specified order, matching given conditions conds
+// 获取数据库返回的第一个记录，不指定排序，匹配给定的条件
 func (db *DB) Take(dest interface{}, conds ...interface{}) (tx *DB) {
 	tx = db.Limit(1)
 	if len(conds) > 0 {
@@ -143,6 +152,7 @@ func (db *DB) Take(dest interface{}, conds ...interface{}) (tx *DB) {
 }
 
 // Last finds the last record ordered by primary key, matching given conditions conds
+// 获取最后一条记录，按照主键排序，匹配给定的条件
 func (db *DB) Last(dest interface{}, conds ...interface{}) (tx *DB) {
 	tx = db.Limit(1).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: clause.PrimaryKey},
@@ -159,6 +169,7 @@ func (db *DB) Last(dest interface{}, conds ...interface{}) (tx *DB) {
 }
 
 // Find finds all records matching given conditions conds
+// 获取所有匹配给定条件的记录
 func (db *DB) Find(dest interface{}, conds ...interface{}) (tx *DB) {
 	tx = db.getInstance()
 	if len(conds) > 0 {
@@ -171,6 +182,7 @@ func (db *DB) Find(dest interface{}, conds ...interface{}) (tx *DB) {
 }
 
 // FindInBatches finds all records in batches of batchSize
+// 获取所有记录，分批次获取
 func (db *DB) FindInBatches(dest interface{}, batchSize int, fc func(tx *DB, batch int) error) *DB {
 	var (
 		tx = db.Order(clause.OrderByColumn{

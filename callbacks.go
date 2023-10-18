@@ -30,11 +30,12 @@ type callbacks struct {
 	processors map[string]*processor
 }
 
+// processor 对应一个操作的回调函数
 type processor struct {
-	db        *DB
-	Clauses   []string
-	fns       []func(*DB)
-	callbacks []*callback
+	db        *DB         // 数据库实例
+	Clauses   []string    // select、update、delete、insert 操作都有不同的 Clauses
+	fns       []func(*DB) // 对数据库进行 option 操作， callback 集合
+	callbacks []*callback // 回调接口，比如在插入前，插入后
 }
 
 type callback struct {
@@ -79,8 +80,8 @@ func (p *processor) Execute(db *DB) *DB {
 	}
 
 	var (
-		curTime           = time.Now()
-		stmt              = db.Statement
+		curTime           = time.Now()   // 当前时间
+		stmt              = db.Statement // 当前 statement
 		resetBuildClauses bool
 	)
 
@@ -126,10 +127,13 @@ func (p *processor) Execute(db *DB) *DB {
 		}
 	}
 
+	// 核心操作：调用每个语句核心操作和回调
+	// RegisterDefaultCallbacks 加上自定义注册的回调
 	for _, f := range p.fns {
 		f(db)
 	}
 
+	// 记录日志
 	if stmt.SQL.Len() > 0 {
 		db.Logger.Trace(stmt.Context, curTime, func() (string, int64) {
 			sql, vars := stmt.SQL.String(), stmt.Vars
