@@ -45,7 +45,7 @@ GORM 主要是围绕着下面几个类型来进行设计
 如以下代码所示，通过 gorm 创建 sqlite 数据库连接
 > sqlite 在 gorm 中有两种数据库驱动：CGO和纯Go实现
 ```go
-db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+ db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 ```
 1. `sqlite.Open("test.db")`: 来获取 sqlite 的 Dialector 实现，这是数据库和 GORM 沟通的桥梁
 2. `&gorm.Config{}`: GORM 全局配置
@@ -57,3 +57,123 @@ db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 4. **调用 Dialector#Initialize 方法：数据库驱动进行初始化（连接数据库、方言配置等）**
    > 在每个数据库驱动的 Initialize 方法中，都会调用 `callbacks.RegisterDefaultCallbacks` 来注册对应的语句的 callback，数据库不同每个语句（SELECT、UPDATE 等）对应的 Clause 也不同
 5. 设置 Statement，进行一些后置操作，比如 ping 数据库
+
+### DB.Create 流程分析
+如下代码，连接 sqlite 数据库，并创建一条数据
+```go
+  db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+  if err != nil {
+    panic("failed to connect database")
+  }
+
+  // Create
+  db.Create(&Product{Code: "D42", Price: 100})
+```
+
+Create 代码如下所示
+1. CreateBatchSize 大于 0，则调用 CreateInBatches 进行批量插入
+2. 获取数据库实例，可以理解为是一个事务，每次创建都是通过新事务来创建
+3. 设置 Dest 值，即要插入的数据
+4. 获取 create 操作对应的 processor，然后执行（最终会进入 `processor#Execute` 方法）
+```go
+func (db *DB) Create(value interface{}) (tx *DB) {
+	if db.CreateBatchSize > 0 {
+		return db.CreateInBatches(value, db.CreateBatchSize)
+	}
+
+	tx = db.getInstance()
+	// 设置目标值
+	tx.Statement.Dest = value
+	// 执行 sql
+	return tx.callbacks.Create().Execute(tx)
+}
+```
+
+processor#Execute 操作
+1. 解析 model 和 dest
+2. 调用 Create 语句对应的 func(db *gorm.DB) 函数：开启事务、生成 SQL、执行、提交事务等操作
+3. 进行收尾工作：记录日志
+```go
+func (p *processor) Execute(db *DB) *DB {
+	// call scopes
+	for len(db.Statement.scopes) > 0 {
+		db = db.executeScopes()
+	}
+
+	var (
+		curTime           = time.Now()   // 当前时间
+		stmt              = db.Statement // 当前 statement
+		resetBuildClauses bool
+	)
+
+	if len(stmt.BuildClauses) == 0 {
+		stmt.BuildClauses = p.Clauses
+		resetBuildClauses = true
+	}
+
+	if optimizer, ok := db.Statement.Dest.(StatementModifier); ok {
+		optimizer.ModifyStatement(stmt)
+	}
+
+	// assign model values
+	if stmt.Model == nil {
+		stmt.Model = stmt.Dest
+	} else if stmt.Dest == nil {
+		stmt.Dest = stmt.Model
+	}
+
+	// parse model values
+	if stmt.Model != nil {
+		if err := stmt.Parse(stmt.Model); err != nil && (!errors.Is(err, schema.ErrUnsupportedDataType) || (stmt.Table == "" && stmt.TableExpr == nil && stmt.SQL.Len() == 0)) {
+			if errors.Is(err, schema.ErrUnsupportedDataType) && stmt.Table == "" && stmt.TableExpr == nil {
+				db.AddError(fmt.Errorf("%w: Table not set, please set it like: db.Model(&user) or db.Table(\"users\")", err))
+			} else {
+				db.AddError(err)
+			}
+		}
+	}
+
+	// assign stmt.ReflectValue
+	if stmt.Dest != nil {
+		stmt.ReflectValue = reflect.ValueOf(stmt.Dest)
+		for stmt.ReflectValue.Kind() == reflect.Ptr {
+			if stmt.ReflectValue.IsNil() && stmt.ReflectValue.CanAddr() {
+				stmt.ReflectValue.Set(reflect.New(stmt.ReflectValue.Type().Elem()))
+			}
+
+			stmt.ReflectValue = stmt.ReflectValue.Elem()
+		}
+		if !stmt.ReflectValue.IsValid() {
+			db.AddError(ErrInvalidValue)
+		}
+	}
+
+	// 核心操作：调用每个语句核心操作和回调
+	// RegisterDefaultCallbacks 加上自定义注册的回调
+	for _, f := range p.fns {
+		f(db)
+	}
+
+	// 记录日志
+	if stmt.SQL.Len() > 0 {
+		db.Logger.Trace(stmt.Context, curTime, func() (string, int64) {
+			sql, vars := stmt.SQL.String(), stmt.Vars
+			if filter, ok := db.Logger.(ParamsFilter); ok {
+				sql, vars = filter.ParamsFilter(stmt.Context, stmt.SQL.String(), stmt.Vars...)
+			}
+			return db.Dialector.Explain(sql, vars...), db.RowsAffected
+		}, db.Error)
+	}
+
+	if !stmt.DB.DryRun {
+		stmt.SQL.Reset()
+		stmt.Vars = nil
+	}
+
+	if resetBuildClauses {
+		stmt.BuildClauses = nil
+	}
+
+	return db
+}
+```
