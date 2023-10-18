@@ -15,6 +15,7 @@ func TestJoins(t *testing.T) {
 	DB.Create(&user)
 
 	var user2 User
+	//DB.Select()
 	if err := DB.Joins("NamedPet").Joins("Company").Joins("Manager").Joins("Account").First(&user2, "users.name = ?", user.Name).Error; err != nil {
 		t.Fatalf("Failed to load with joins, got error: %v", err)
 	}

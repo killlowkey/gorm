@@ -3,9 +3,9 @@ package clause
 // Select select attrs when querying, updating, creating
 // SELECT DISTINCT column1, column2 FROM your_table;
 type Select struct {
-	Distinct   bool     // 确保每一行都是唯一的
-	Columns    []Column // 选择的列
-	Expression Expression
+	Distinct   bool       // 确保每一行都是唯一的
+	Columns    []Column   // 选择的列，只能是单表中的字段，如果有连接操作，select 字段需要手动指定
+	Expression Expression // 手动选择字段
 }
 
 func (s Select) Name() string {
@@ -30,6 +30,8 @@ func (s Select) Build(builder Builder) {
 	}
 }
 
+// MergeClause 手动添加的 select 语句
+// select u.name, m.id from meeting m left join user u on u.id = m.u_id;
 func (s Select) MergeClause(clause *Clause) {
 	if s.Expression != nil {
 		if s.Distinct {

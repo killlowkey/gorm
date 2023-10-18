@@ -2,16 +2,27 @@
 1. callback: 存储回调函数，比如 create、update、insert、delete 等
 2. clause: 存储 SQL 语句的片段，比如 select、from、where、group by、having、order by、limit 等
    > 分而治之的思想，每个 SQL 语句都拆分成若干个片段，然后根据片段的执行顺序依次执行
+   > 
+   > `expression.go` 包含一个 `clause.Expression` 顶级接口，用于构建语句（select、update、insert、delete）和条件表达式，and、or、in、
+   > not in、like、not like、between、not between、is null、is not null、in、not in、like、not
+   1. SELECT: 依次调用 SELECT、FROM、WHERE、GROUP BY、ORDER BY、LIMIT、FOR 
+   2. UPDATE: 依次调用 UPDATE、SET、WHERE 
+   3. INSERT: 依次调用 INSERT、VALUES、ON CONFLICT 
+   4. DELETE: 依次调用 DELETE、FROM、WHERE
 3. logger: 日志相关操作，记录耗时、执行的 SQL 语句等
 4. migrator: 数据库迁移相关操作，比如创建表、添加字段、修改字段、删除表等
 5. schema: 存储数据库的表结构，比如表名、字段名、字段类型、索引、外键等
 6. tests: 测试文件
 7. utils: 工具类
 8. association: 关系操作 hasOne、belongTo、HasMany、ManyToMany
-9. callbacks.go：create、update、insert、delete 等回调函数统一入口
-10. chainable_api.go: 流式 api 操作接口，where().find() 这种
+9. callbacks.go：select、update、insert、delete 等回调函数统一入口
+10. chainable_api.go: 流式操作，进行语句整合操作，调用里面任何方法，返回 db 对象，返回的对象里面还可以调用对应的流式操作
+    > select、table、where、order by、limit、offset、group by、having、join、left join、right join、inner join、cross join、
+    > where、or、and、not、in、not in、like、not like、between、not between、is null、is not null、in、not in、like、not like
 11. errors.go: gorm 使用的错误类型
-12. finisher_api.go: 包装 gorm 操作，提供便捷操作方法
+12. finisher_api.go: 终止操作，调用里面任何一个方法， db 对象会执行对应的 sql 语句并返回值
+    > first、last、take、create、update、delete、exec、beginTransaction、commit、rollback 等
+    > 可以通过 DB 的 Error 和 RowsAffected 判断执行结果
 13. gorm.go: 配置、数据库连接、session 创建等
 14. interfaces.go: 全局接口定义
 15. migrator.go: 迁移操作接口定义，交由具体的数据库驱动来实现
@@ -41,7 +52,7 @@ GORM 主要是围绕着下面几个类型来进行设计
 2. 阅读根目录代码 interfaces.go、gorm.go、model.go、errors.go、statement.go 等
 3. 阅读 callbacks 和 clause 目录
 
-### gorm.Open 流程分析
+## gorm.Open 流程分析
 如以下代码所示，通过 gorm 创建 sqlite 数据库连接
 > sqlite 在 gorm 中有两种数据库驱动：CGO和纯Go实现
 ```go
@@ -58,7 +69,7 @@ GORM 主要是围绕着下面几个类型来进行设计
    > 在每个数据库驱动的 Initialize 方法中，都会调用 `callbacks.RegisterDefaultCallbacks` 来注册对应的语句的 callback，数据库不同每个语句（SELECT、UPDATE 等）对应的 Clause 也不同
 5. 设置 Statement，进行一些后置操作，比如 ping 数据库
 
-### DB.Create 流程分析
+## DB.Create 流程分析
 如下代码，连接 sqlite 数据库，并创建一条数据
 ```go
   db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
@@ -177,3 +188,4 @@ func (p *processor) Execute(db *DB) *DB {
 	return db
 }
 ```
+

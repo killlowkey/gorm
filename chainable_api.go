@@ -133,6 +133,9 @@ func (db *DB) Select(query interface{}, args ...interface{}) (tx *DB) {
 			tx.Statement.Clauses["SELECT"] = clause
 		}
 	case string:
+		// ? 和 @ 都是占位符，传入的 args 为占位符值，比如 args 为 ["name","age"]
+		// select ?,?,? from user
+		// select @,@,@ from user
 		if strings.Count(v, "?") >= len(args) && len(args) > 0 {
 			tx.Statement.AddClause(clause.Select{
 				Distinct:   db.Statement.Distinct,
@@ -144,8 +147,13 @@ func (db *DB) Select(query interface{}, args ...interface{}) (tx *DB) {
 				Expression: clause.NamedExpr{SQL: v, Vars: args},
 			})
 		} else {
+			// select name,age from user
+			// DB.Table("user").Select("name,age")
 			tx.Statement.Selects = []string{v}
 
+			// 遍历参数
+			// DB.Select("Name", "Account", "Toys", "Manager", "ManagerID", "Languages").Save(&result) 只更新 select 字段？
+			// DB.Table("user").Select("Name", "Account", "Toys", "Manager", "ManagerID", "Languages").Find(&user)
 			for _, arg := range args {
 				switch arg := arg.(type) {
 				case string:
@@ -153,6 +161,7 @@ func (db *DB) Select(query interface{}, args ...interface{}) (tx *DB) {
 				case []string:
 					tx.Statement.Selects = append(tx.Statement.Selects, arg...)
 				default:
+					// 其它类型数据，需要自定义表达式
 					tx.Statement.AddClause(clause.Select{
 						Distinct:   db.Statement.Distinct,
 						Expression: clause.Expr{SQL: v, Vars: args},

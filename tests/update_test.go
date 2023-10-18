@@ -270,6 +270,7 @@ func TestSelectWithUpdate(t *testing.T) {
 	result.Languages = user2.Languages
 	result.Friends = user2.Friends
 
+	// 只更新 select 字段？
 	DB.Select("Name", "Account", "Toys", "Manager", "ManagerID", "Languages").Save(&result)
 
 	var result2 User
