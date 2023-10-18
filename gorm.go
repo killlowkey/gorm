@@ -100,13 +100,13 @@ type DB struct {
 
 // Session session config when create session with Session() method
 type Session struct {
-	DryRun                   bool
-	PrepareStmt              bool
-	NewDB                    bool
-	Initialized              bool
-	SkipHooks                bool
-	SkipDefaultTransaction   bool
-	DisableNestedTransaction bool
+	DryRun                   bool // 开启后，语句不会执行，一般用于 debug，生成对应的 SQL 语句
+	PrepareStmt              bool // 预编译的 Statement，先将 SQL 发送给数据库，之后只需要传入 StatementId 和绑定值给数据库执行即可
+	NewDB                    bool // 是否创建新的 DB 对象
+	Initialized              bool // 是否初始化
+	SkipHooks                bool // 是否跳过钩子，BeforeCreate 这种函数
+	SkipDefaultTransaction   bool // 是否跳过默认事务，跳过则手动控制事务
+	DisableNestedTransaction bool // 是否关闭嵌套事务
 	AllowGlobalUpdate        bool
 	FullSaveAssociations     bool
 	QueryFields              bool
@@ -126,6 +126,7 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 		return isConfig && !isConfig2
 	})
 
+	// 收集 opts 配置到 config 中
 	for _, opt := range opts {
 		if opt != nil {
 			if applyErr := opt.Apply(config); applyErr != nil {
@@ -139,12 +140,14 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 		}
 	}
 
+	// 收集数据库驱动配置到 config 中
 	if d, ok := dialector.(interface{ Apply(*Config) error }); ok {
 		if err = d.Apply(config); err != nil {
 			return
 		}
 	}
 
+	// 当配置为空时，初始化一些默认配置
 	if config.NamingStrategy == nil {
 		config.NamingStrategy = schema.NamingStrategy{IdentifierMaxLength: 64} // Default Identifier length is 64
 	}
@@ -171,12 +174,14 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 
 	db = &DB{Config: config, clone: 1}
 
+	// 为 select、update 等语句注册 processor
 	db.callbacks = initializeCallbacks(db)
 
 	if config.ClauseBuilders == nil {
 		config.ClauseBuilders = map[string]clause.ClauseBuilder{}
 	}
 
+	// 交由数据库驱动来进行初始化：连接数据库、方言配置
 	if config.Dialector != nil {
 		err = config.Dialector.Initialize(db)
 
@@ -193,6 +198,7 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 		db.ConnPool = preparedStmt
 	}
 
+	// 初始化 Statement
 	db.Statement = &Statement{
 		DB:       db,
 		ConnPool: db.ConnPool,
@@ -200,6 +206,7 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 		Clauses:  map[string]clause.Clause{},
 	}
 
+	// ping 数据库
 	if err == nil && !config.DisableAutomaticPing {
 		if pinger, ok := db.ConnPool.(interface{ Ping() error }); ok {
 			err = pinger.Ping()
@@ -214,16 +221,20 @@ func Open(dialector Dialector, opts ...Option) (db *DB, err error) {
 }
 
 // Session create new db session
+// 创建一个新的数据库会话，Session 之间是互不影响的
 func (db *DB) Session(config *Session) *DB {
 	var (
+		// 获取原先数据库配置
 		txConfig = *db.Config
-		tx       = &DB{
-			Config:    &txConfig,
+		// 创建新的 DB 对象
+		tx = &DB{
+			Config:    &txConfig, // 实现原先配置
 			Statement: db.Statement,
 			Error:     db.Error,
-			clone:     1,
+			clone:     1, // 标记为1
 		}
 	)
+	// 设置方法传入的配置参数
 	if config.CreateBatchSize > 0 {
 		tx.Config.CreateBatchSize = config.CreateBatchSize
 	}
@@ -284,6 +295,7 @@ func (db *DB) Session(config *Session) *DB {
 		txConfig.DisableNestedTransaction = true
 	}
 
+	// 不是新的数据库，clone 设置为 2
 	if !config.NewDB {
 		tx.clone = 2
 	}
@@ -304,6 +316,7 @@ func (db *DB) Session(config *Session) *DB {
 		tx.Config.NowFunc = config.NowFunc
 	}
 
+	// 已经初始化，获取新的数据库实例
 	if config.Initialized {
 		tx = tx.getInstance()
 	}
