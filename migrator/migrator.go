@@ -108,11 +108,14 @@ func (m Migrator) AutoMigrate(values ...interface{}) error {
 			queryTx.DryRun = false
 			execTx = m.DB.Session(&gorm.Session{Logger: &printSQLLogger{Interface: m.DB.Logger}})
 		}
+		// 数据库是否存在该表
 		if !queryTx.Migrator().HasTable(value) {
+			// 不存在，直接创建
 			if err := execTx.Migrator().CreateTable(value); err != nil {
 				return err
 			}
 		} else {
+			// 存在，则需要判断那些字段需要增加
 			if err := m.RunWithValue(value, func(stmt *gorm.Statement) error {
 				columnTypes, err := queryTx.Migrator().ColumnTypes(value)
 				if err != nil {
@@ -187,6 +190,7 @@ func (m Migrator) AutoMigrate(values ...interface{}) error {
 }
 
 // GetTables returns tables
+// 获取指定库的所有表
 func (m Migrator) GetTables() (tableList []string, err error) {
 	err = m.DB.Raw("SELECT TABLE_NAME FROM information_schema.tables where TABLE_SCHEMA=?", m.CurrentDatabase()).
 		Scan(&tableList).Error

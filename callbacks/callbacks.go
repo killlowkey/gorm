@@ -55,13 +55,19 @@ func RegisterDefaultCallbacks(db *gorm.DB, config *Config) {
 	createCallback.Clauses = config.CreateClauses
 
 	// select 查询语句
+	// DB.Model(&User).Preload(&Company).Where("id = ?", 1).Find(&user)
+	// User => id,name,age,company_id,company
+	// Company => id,name,address
+	// select * from user where id = 1 limit 1;
+	// select * from company where id = user.company_id;
 	queryCallback := db.Callback().Query()
-	queryCallback.Register("gorm:query", Query) // 主处理逻辑
-	queryCallback.Register("gorm:preload", Preload)
+	queryCallback.Register("gorm:query", Query)     // 主处理逻辑
+	queryCallback.Register("gorm:preload", Preload) // preload 其它表，有 preload 操作，会拆分两个 sql 语句
 	queryCallback.Register("gorm:after_query", AfterQuery)
 	queryCallback.Clauses = config.QueryClauses
 
 	// delete 语句
+	// Associations: HasOne、BelongTo、HasMany、ManyToMany
 	deleteCallback := db.Callback().Delete()
 	deleteCallback.Match(enableTransaction).Register("gorm:begin_transaction", BeginTransaction)
 	deleteCallback.Register("gorm:before_delete", BeforeDelete)
@@ -71,7 +77,11 @@ func RegisterDefaultCallbacks(db *gorm.DB, config *Config) {
 	deleteCallback.Match(enableTransaction).Register("gorm:commit_or_rollback_transaction", CommitOrRollbackTransaction)
 	deleteCallback.Clauses = config.DeleteClauses
 
+	// Create 语句
+	// DB.Model(&User).Create(&user)
 	// update 语句
+	// user.company = &Company{name:"1",address:"2"}
+	// DB.Model(&User).Save(&user)
 	updateCallback := db.Callback().Update()
 	updateCallback.Match(enableTransaction).Register("gorm:begin_transaction", BeginTransaction)
 	updateCallback.Register("gorm:setup_reflect_value", SetupUpdateReflectValue)
@@ -83,10 +93,14 @@ func RegisterDefaultCallbacks(db *gorm.DB, config *Config) {
 	updateCallback.Match(enableTransaction).Register("gorm:commit_or_rollback_transaction", CommitOrRollbackTransaction)
 	updateCallback.Clauses = config.UpdateClauses
 
+	// 查询记录扫描到字段
+	// DB.Model(&User).Where("id = ?", 1).Row().Scan(&name)
 	rowCallback := db.Callback().Row()
 	rowCallback.Register("gorm:row", RowQuery)
 	rowCallback.Clauses = config.QueryClauses
 
+	// 原生查询
+	// DB.Raw("select * from users where name = ?", "jinzhu").Scan(&users))
 	rawCallback := db.Callback().Raw()
 	rawCallback.Register("gorm:raw", RawExec)
 	rawCallback.Clauses = config.QueryClauses

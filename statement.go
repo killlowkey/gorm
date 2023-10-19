@@ -35,7 +35,7 @@ type Statement struct {
 	Joins                []join                   // 连接查询
 	Preloads             map[string][]interface{} // 预先加载的关联
 	Settings             sync.Map                 // 设置
-	ConnPool             ConnPool                 // 数据库连接池
+	ConnPool             ConnPool                 // 数据库连接池，GORM 预编译 Statement，其它都交由 Go 底层管理
 	Schema               *schema.Schema           // 表结构
 	Context              context.Context
 	RaiseErrorOnNotFound bool

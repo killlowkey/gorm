@@ -1,5 +1,7 @@
 ## 目录结构
 1. callback: 存储回调函数，比如 create、update、insert、delete 等
+   > 每个步骤各司其职，比如 create 语句执行前需要进行开启事务、构建sql、执行、提交事务等操作
+   > 分而治之，每个语句的回调为了处理部分事情，当所有事情都处理完后，就形成一个语句整体干的事情
 2. clause: 存储 SQL 语句的片段，比如 select、from、where、group by、having、order by、limit 等
    > 分而治之的思想，每个 SQL 语句都拆分成若干个片段，然后根据片段的执行顺序依次执行
    > 
@@ -19,7 +21,7 @@
 10. chainable_api.go: 流式操作，进行语句整合操作，调用里面任何方法，返回 db 对象，返回的对象里面还可以调用对应的流式操作
     > select、table、where、order by、limit、offset、group by、having、join、left join、right join、inner join、cross join、where、or、and、not、in、not in、like、not like、between、not between、is null、is not null、in、not in、like、not like
 11. errors.go: gorm 使用的错误类型
-12. finisher_api.go: 终止操作，调用里面任何一个方法， db 对象会执行对应的 sql 语句并返回值
+12. finisher_api.go: 终止操作，调用里面任何一个方法， db 对象会执行对应的 sql 语句，并设置 dest 值
     > first、last、take、create、update、delete、exec、beginTransaction、commit、rollback 等, 可以通过 DB 的 Error 和 RowsAffected 判断执行结果
 13. gorm.go: 配置、数据库连接、session 创建等
 14. interfaces.go: 全局接口定义

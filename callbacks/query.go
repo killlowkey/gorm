@@ -291,6 +291,7 @@ func Preload(db *gorm.DB) {
 			return
 		}
 
+		// 获取所有 preload 表名
 		preloadMap := parsePreloadMap(db.Statement.Schema, db.Statement.Preloads)
 		preloadNames := make([]string, 0, len(preloadMap))
 		for key := range preloadMap {
@@ -298,6 +299,7 @@ func Preload(db *gorm.DB) {
 		}
 		sort.Strings(preloadNames)
 
+		// 创建新的会话执行
 		preloadDB := db.Session(&gorm.Session{Context: db.Statement.Context, NewDB: true, SkipHooks: db.Statement.SkipHooks, Initialized: true})
 		db.Statement.Settings.Range(func(k, v interface{}) bool {
 			preloadDB.Statement.Settings.Store(k, v)
@@ -314,6 +316,7 @@ func Preload(db *gorm.DB) {
 			if relations := preloadDB.Statement.Schema.Relationships.EmbeddedRelations[name]; relations != nil {
 				db.AddError(preloadEmbedded(preloadDB.Table("").Session(&gorm.Session{Context: db.Statement.Context, SkipHooks: db.Statement.SkipHooks}), relations, db.Statement.Schema, preloadMap[name], db.Statement.Preloads[clause.Associations]))
 			} else if rel := preloadDB.Statement.Schema.Relationships.Relations[name]; rel != nil {
+				// 执行
 				db.AddError(preload(preloadDB.Table("").Session(&gorm.Session{Context: db.Statement.Context, SkipHooks: db.Statement.SkipHooks}), rel, append(db.Statement.Preloads[name], db.Statement.Preloads[clause.Associations]...), preloadMap[name]))
 			} else {
 				db.AddError(fmt.Errorf("%s: %w for schema %s", name, gorm.ErrUnsupportedRelation, db.Statement.Schema.Name))

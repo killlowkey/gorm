@@ -89,10 +89,12 @@ func preloadEmbedded(tx *gorm.DB, relationships *schema.Relationships, s *schema
 	preloadMap := parsePreloadMap(s, preloads)
 	for name := range preloadMap {
 		if embeddedRelations := relationships.EmbeddedRelations[name]; embeddedRelations != nil {
+			// 递归加载内部 preload 表
 			if err := preloadEmbedded(tx, embeddedRelations, s, preloadMap[name], as); err != nil {
 				return err
 			}
 		} else if rel := relationships.Relations[name]; rel != nil {
+			// 执行
 			if err := preload(tx, rel, append(preloads[name], as), preloadMap[name]); err != nil {
 				return err
 			}
