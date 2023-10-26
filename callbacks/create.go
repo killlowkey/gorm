@@ -53,6 +53,9 @@ func Create(config *Config) func(db *gorm.DB) {
 			}
 
 			if supportReturning && len(db.Statement.Schema.FieldsWithDefaultDBValue) > 0 {
+				// 是否存在 RETURNING 语句，可以返回值
+				// INSERT INTO USERS("name") VALUES("ray") RETURNING id; => 返回 id
+				// 默认数据库插入记录都会之后都会返回 id 的，也可以返回 name，比如 RETURNING name
 				if _, ok := db.Statement.Clauses["RETURNING"]; !ok {
 					fromColumns := make([]clause.Column, 0, len(db.Statement.Schema.FieldsWithDefaultDBValue))
 					for _, field := range db.Statement.Schema.FieldsWithDefaultDBValue {
@@ -66,19 +69,27 @@ func Create(config *Config) func(db *gorm.DB) {
 		// 构建 sql 语句
 		if db.Statement.SQL.Len() == 0 {
 			db.Statement.SQL.Grow(180)
+			// INSERT INTO USERS("name") VALUES("ray")
 			db.Statement.AddClauseIfNotExists(clause.Insert{})          // insert statement
 			db.Statement.AddClause(ConvertToCreateValues(db.Statement)) // values statement
 
+			// 构建
 			db.Statement.Build(db.Statement.BuildClauses...)
 		}
 
+		// 设置 DryRun，SQL 不执行，用于调试用，用户生成后的 SQL 语句
 		isDryRun := !db.DryRun && db.Error == nil
 		if !isDryRun {
 			return
 		}
 
-		ok, mode := hasReturning(db, supportReturning) // 是否包含返回值，比如返回插入 id
+		// 是否包含返回值，比如返回插入 id
+		ok, mode := hasReturning(db, supportReturning)
 		if ok {
+			// ON CONFLICT 处理冲突机制，一般与 insert 和 update 连用
+			// ON CONFLICT 子句允许您指定在冲突发生时应采取的操作
+			// 如果已经存在 id 为 1 的记录，它将更新该记录的 name 字段为 'John'。
+			// INSERT INTO my_table (id, name) VALUES (1, 'John') ON CONFLICT (id) DO UPDATE SET name = 'John';
 			if c, ok := db.Statement.Clauses["ON CONFLICT"]; ok {
 				if onConflict, _ := c.Expression.(clause.OnConflict); onConflict.DoNothing {
 					mode |= gorm.ScanOnConflictDoNothing
@@ -115,16 +126,18 @@ func Create(config *Config) func(db *gorm.DB) {
 		if db.RowsAffected != 0 && db.Statement.Schema != nil &&
 			db.Statement.Schema.PrioritizedPrimaryField != nil &&
 			db.Statement.Schema.PrioritizedPrimaryField.HasDefaultValue {
-			// 获取插入 id
+			// 获取插入 id，由数据库方言支持
 			insertID, err := result.LastInsertId()
 			insertOk := err == nil && insertID > 0
+			// 插入失败
 			if !insertOk {
 				db.AddError(err)
 				return
 			}
 
+			// 将 insertId 设置给 struct 的 ID 主键字段
 			switch db.Statement.ReflectValue.Kind() {
-			case reflect.Slice, reflect.Array: // 数组
+			case reflect.Slice, reflect.Array: // 数组，需要遍历每个元素来进行设置
 				if config.LastInsertIDReversed {
 					for i := db.Statement.ReflectValue.Len() - 1; i >= 0; i-- {
 						rv := db.Statement.ReflectValue.Index(i)
@@ -134,6 +147,7 @@ func Create(config *Config) func(db *gorm.DB) {
 
 						_, isZero := db.Statement.Schema.PrioritizedPrimaryField.ValueOf(db.Statement.Context, rv)
 						if isZero {
+							// 设置插入 id
 							db.AddError(db.Statement.Schema.PrioritizedPrimaryField.Set(db.Statement.Context, rv, insertID))
 							insertID -= db.Statement.Schema.PrioritizedPrimaryField.AutoIncrementIncrement
 						}
@@ -146,15 +160,17 @@ func Create(config *Config) func(db *gorm.DB) {
 						}
 
 						if _, isZero := db.Statement.Schema.PrioritizedPrimaryField.ValueOf(db.Statement.Context, rv); isZero {
+							// 设置插入 id
 							db.AddError(db.Statement.Schema.PrioritizedPrimaryField.Set(db.Statement.Context, rv, insertID))
 							insertID += db.Statement.Schema.PrioritizedPrimaryField.AutoIncrementIncrement
 						}
 					}
 				}
 			case reflect.Struct:
-				// 设置值到 db.Statement.ReflectValue 中
+				// 主键 id 值为空，那么开始插入主键 id
 				_, isZero := db.Statement.Schema.PrioritizedPrimaryField.ValueOf(db.Statement.Context, db.Statement.ReflectValue)
 				if isZero {
+					// 设置插入 id
 					db.AddError(db.Statement.Schema.PrioritizedPrimaryField.Set(db.Statement.Context, db.Statement.ReflectValue, insertID))
 				}
 			}

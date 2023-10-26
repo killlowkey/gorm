@@ -28,7 +28,7 @@ type Schema struct {
 	FieldsByName              map[string]*Field
 	FieldsByBindName          map[string]*Field // embedded fields is 'Embed.Field'
 	FieldsByDBName            map[string]*Field
-	FieldsWithDefaultDBValue  []*Field // fields with default value assigned by database
+	FieldsWithDefaultDBValue  []*Field // fields with default value assigned by database，RETURNING 返回值
 	Relationships             Relationships
 	CreateClauses             []clause.Interface // 构建插入语句
 	QueryClauses              []clause.Interface // 构建查询语句

@@ -583,7 +583,7 @@ func (field *Field) setupValuerAndSetter() {
 		return
 	}
 
-	// Set
+	// Set 字段值，类型不同，对应的 func 也不同
 	switch field.FieldType.Kind() {
 	case reflect.Bool:
 		field.Set = func(ctx context.Context, value reflect.Value, v interface{}) error {
