@@ -101,7 +101,7 @@ func (p *processor) Execute(db *DB) *DB {
 		stmt.Dest = stmt.Model
 	}
 
-	// parse model values
+	// parse model values(metadata)
 	if stmt.Model != nil {
 		if err := stmt.Parse(stmt.Model); err != nil && (!errors.Is(err, schema.ErrUnsupportedDataType) || (stmt.Table == "" && stmt.TableExpr == nil && stmt.SQL.Len() == 0)) {
 			if errors.Is(err, schema.ErrUnsupportedDataType) && stmt.Table == "" && stmt.TableExpr == nil {

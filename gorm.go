@@ -100,20 +100,20 @@ type DB struct {
 
 // Session session config when create session with Session() method
 type Session struct {
-	DryRun                   bool // 开启后，语句不会执行，一般用于 debug，生成对应的 SQL 语句
-	PrepareStmt              bool // 预编译的 Statement，先将 SQL 发送给数据库，之后只需要传入 StatementId 和绑定值给数据库执行即可
-	NewDB                    bool // 是否创建新的 DB 对象
-	Initialized              bool // 是否初始化
-	SkipHooks                bool // 是否跳过钩子，BeforeCreate 这种函数
-	SkipDefaultTransaction   bool // 是否跳过默认事务，跳过则手动控制事务
-	DisableNestedTransaction bool // 是否关闭嵌套事务
-	AllowGlobalUpdate        bool
-	FullSaveAssociations     bool
-	QueryFields              bool
-	Context                  context.Context
-	Logger                   logger.Interface
+	DryRun                   bool             // 开启后，语句不会执行，一般用于 debug，生成对应的 SQL 语句
+	PrepareStmt              bool             // 预编译的 Statement，先将 SQL 发送给数据库，之后只需要传入 StatementId 和绑定值给数据库执行即可
+	NewDB                    bool             // 是否创建新的 DB 对象
+	Initialized              bool             // 是否初始化
+	SkipHooks                bool             // 是否跳过钩子，BeforeCreate 这种函数
+	SkipDefaultTransaction   bool             // 是否跳过默认事务，跳过则手动控制事务
+	DisableNestedTransaction bool             // 是否关闭嵌套事务
+	AllowGlobalUpdate        bool             // 是否允许全局更新
+	FullSaveAssociations     bool             // 是否完全保存关联
+	QueryFields              bool             // 是否查询所有字段
+	Context                  context.Context  // 当前上下文
+	Logger                   logger.Interface // 日志
 	NowFunc                  func() time.Time
-	CreateBatchSize          int
+	CreateBatchSize          int // 批量插入
 }
 
 // Open initialize db session based on dialector
@@ -260,9 +260,11 @@ func (db *DB) Session(config *Session) *DB {
 		tx.Statement.Context = config.Context
 	}
 
+	// 如果开启了预编译
 	if config.PrepareStmt {
 		var preparedStmt *PreparedStmtDB
 
+		// 从缓存中获取
 		if v, ok := db.cacheStore.Load(preparedStmtDBKey); ok {
 			preparedStmt = v.(*PreparedStmtDB)
 		} else {
@@ -270,6 +272,7 @@ func (db *DB) Session(config *Session) *DB {
 			db.cacheStore.Store(preparedStmtDBKey, preparedStmt)
 		}
 
+		// 设置连接池
 		switch t := tx.Statement.ConnPool.(type) {
 		case Tx:
 			tx.Statement.ConnPool = &PreparedStmtTX{
