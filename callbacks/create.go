@@ -73,7 +73,7 @@ func Create(config *Config) func(db *gorm.DB) {
 			db.Statement.AddClauseIfNotExists(clause.Insert{})          // insert statement
 			db.Statement.AddClause(ConvertToCreateValues(db.Statement)) // values statement
 
-			// 构建
+			// 构建 sql
 			db.Statement.Build(db.Statement.BuildClauses...)
 		}
 
@@ -96,6 +96,7 @@ func Create(config *Config) func(db *gorm.DB) {
 				}
 			}
 
+			// 执行 SQL
 			rows, err := db.Statement.ConnPool.QueryContext(
 				db.Statement.Context, db.Statement.SQL.String(), db.Statement.Vars...,
 			)
@@ -155,10 +156,12 @@ func Create(config *Config) func(db *gorm.DB) {
 				} else {
 					for i := 0; i < db.Statement.ReflectValue.Len(); i++ {
 						rv := db.Statement.ReflectValue.Index(i)
+						// 判断是否是结构体
 						if reflect.Indirect(rv).Kind() != reflect.Struct {
 							break
 						}
 
+						// 主键 id 值为空，那么开始插入主键 id
 						if _, isZero := db.Statement.Schema.PrioritizedPrimaryField.ValueOf(db.Statement.Context, rv); isZero {
 							// 设置插入 id
 							db.AddError(db.Statement.Schema.PrioritizedPrimaryField.Set(db.Statement.Context, rv, insertID))
