@@ -23,8 +23,10 @@ func BeforeDelete(db *gorm.DB) {
 	}
 }
 
+// DeleteBeforeAssociations 关联删除，比如使用了 hasOne hasMany Many2Many 关联，在删除主表数据时，关联数据也会被删除
 func DeleteBeforeAssociations(db *gorm.DB) {
 	if db.Error == nil && db.Statement.Schema != nil {
+		// 剔除忽略字段，获取最终字段
 		selectColumns, restricted := db.Statement.SelectAndOmitColumns(true, false)
 		if !restricted {
 			return
@@ -35,14 +37,17 @@ func DeleteBeforeAssociations(db *gorm.DB) {
 				continue
 			}
 
+			// 获取字段关系类型
 			rel, ok := db.Statement.Schema.Relationships.Relations[column]
 			if !ok {
 				continue
 			}
 
 			switch rel.Type {
-			case schema.HasOne, schema.HasMany:
+			case schema.HasOne, schema.HasMany: // 一对一、一对多
+				// 转为查询条件，删除时需要
 				queryConds := rel.ToQueryConditions(db.Statement.Context, db.Statement.ReflectValue)
+				// 获取该字段对应的 model
 				modelValue := reflect.New(rel.FieldSchema.ModelType).Interface()
 				tx := db.Session(&gorm.Session{NewDB: true}).Model(modelValue)
 				withoutConditions := false
@@ -72,19 +77,26 @@ func DeleteBeforeAssociations(db *gorm.DB) {
 					}
 				}
 
+				// 构建 where 查询
 				if !withoutConditions && db.AddError(tx.Clauses(clause.Where{Exprs: queryConds}).Delete(modelValue).Error) != nil {
 					return
 				}
-			case schema.Many2Many:
+			case schema.Many2Many: // 多对多 select * from users as u left join company as c on u.company_id = c.id;
 				var (
-					queryConds     = make([]clause.Expression, 0, len(rel.References))
-					foreignFields  = make([]*schema.Field, 0, len(rel.References))
+					// 查询条件
+					queryConds = make([]clause.Expression, 0, len(rel.References))
+					// 外键字段
+					foreignFields = make([]*schema.Field, 0, len(rel.References))
+					// 引用外键字段
 					relForeignKeys = make([]string, 0, len(rel.References))
-					modelValue     = reflect.New(rel.JoinTable.ModelType).Interface()
-					table          = rel.JoinTable.Table
-					tx             = db.Session(&gorm.Session{NewDB: true}).Model(modelValue).Table(table)
+					// 连接表的 mode
+					modelValue = reflect.New(rel.JoinTable.ModelType).Interface()
+					// 连接的表
+					table = rel.JoinTable.Table
+					tx    = db.Session(&gorm.Session{NewDB: true}).Model(modelValue).Table(table)
 				)
 
+				// 获取引用字段
 				for _, ref := range rel.References {
 					if ref.OwnPrimaryKey {
 						foreignFields = append(foreignFields, ref.PrimaryKey)
@@ -101,6 +113,7 @@ func DeleteBeforeAssociations(db *gorm.DB) {
 				column, values := schema.ToQueryValues(table, relForeignKeys, foreignValues)
 				queryConds = append(queryConds, clause.IN{Column: column, Values: values})
 
+				// 删除关联数据
 				if db.AddError(tx.Clauses(clause.Where{Exprs: queryConds}).Delete(modelValue).Error) != nil {
 					return
 				}

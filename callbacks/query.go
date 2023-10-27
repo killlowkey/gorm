@@ -39,6 +39,10 @@ func Query(db *gorm.DB) {
 // BuildQuerySQL 构建查询 SQL 语句
 // SQL 在 GORM 设计中采用 clause.Interface 进行表示，from、where、join、group by、having、order by、limit、offset 都是 clause.Interface 类型
 // 这种设计是为了分而治之，每个 clause.Interface 负责自己的 SQL 构建
+// select u.username, c.name from users as a
+// left join company as c on a.company_id = c.id
+// where c.company_price > 50000 and c.address in ('china', 'us')
+// order by c.company_name
 func BuildQuerySQL(db *gorm.DB) {
 	if db.Statement.Schema != nil {
 		for _, c := range db.Statement.Schema.QueryClauses {
