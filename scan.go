@@ -50,9 +50,14 @@ func scanIntoMap(mapValue map[string]interface{}, values []interface{}, columns 
 	}
 }
 
+// scanIntoStruct 扫描数据到结构体
+// values 存放结构体字段数据
+// reflectValue 为结构体反射体
+// fields 数据库字段
 func (db *DB) scanIntoStruct(rows Rows, reflectValue reflect.Value, values []interface{}, fields []*schema.Field, joinFields [][]*schema.Field) {
 	for idx, field := range fields {
 		if field != nil {
+			// 获取池化初始化数据
 			values[idx] = field.NewValuePool.Get()
 		} else if len(fields) == 1 {
 			if reflectValue.CanAddr() {
@@ -63,15 +68,20 @@ func (db *DB) scanIntoStruct(rows Rows, reflectValue reflect.Value, values []int
 		}
 	}
 
+	// 累加影响行数
 	db.RowsAffected++
+	// 扫描数据库记录到 values 中
 	db.AddError(rows.Scan(values...))
 	joinedNestedSchemaMap := make(map[string]interface{})
+	// 依次遍历设置字段值
 	for idx, field := range fields {
 		if field == nil {
 			continue
 		}
 
 		if len(joinFields) == 0 || len(joinFields[idx]) == 0 {
+			// 设置字段值
+			// field.Set = func(ctx context.Context, value reflect.Value, v interface{}) (err error)
 			db.AddError(field.Set(db.Statement.Context, reflectValue, values[idx]))
 		} else { // joinFields count is larger than 2 when using join
 			var isNilPtrValue bool
@@ -324,6 +334,7 @@ func Scan(rows Rows, db *DB, mode ScanMode) {
 				db.Statement.ReflectValue.Set(reflectValue)
 			}
 		case reflect.Struct, reflect.Ptr:
+			// 每行记录都扫描到结构体中
 			if initialized || rows.Next() {
 				db.scanIntoStruct(rows, reflectValue, values, fields, joinFields)
 			}

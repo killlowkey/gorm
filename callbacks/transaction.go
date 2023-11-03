@@ -24,7 +24,7 @@ func CommitOrRollbackTransaction(db *gorm.DB) {
 	if !db.Config.SkipDefaultTransaction {
 		// 判断是否开启了事务
 		if _, ok := db.InstanceGet("gorm:started_transaction"); ok {
-			//  判断是否是回滚事务
+			//  判断是否回滚事务
 			if db.Error != nil {
 				db.Rollback()
 			} else {
