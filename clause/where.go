@@ -84,13 +84,17 @@ func buildExprs(exprs []Expression, builder Builder, joinCond string) {
 
 // MergeClause merge where clauses
 func (where Where) MergeClause(clause *Clause) {
+	// 判断是否是 Where 类型
 	if w, ok := clause.Expression.(Where); ok {
+		// 创建一个新的切片，长度为两个切片的长度之和
 		exprs := make([]Expression, len(w.Exprs)+len(where.Exprs))
+		// 将 where.Exprs 的值拷贝到 exprs 中
 		copy(exprs, w.Exprs)
 		copy(exprs[len(w.Exprs):], where.Exprs)
 		where.Exprs = exprs
 	}
 
+	// 将 where.Exprs 赋值给 clause.Expression
 	clause.Expression = where
 }
 

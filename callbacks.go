@@ -85,6 +85,8 @@ func (p *processor) Execute(db *DB) *DB {
 		resetBuildClauses bool
 	)
 
+	// 赋值链式调用的 Clauses，用于后续构建 SQL 语句
+	// db.Model(&User{}).Where("name = ?", "jinzhu").Where("age = ?", 20).find(&user)
 	if len(stmt.BuildClauses) == 0 {
 		stmt.BuildClauses = p.Clauses
 		resetBuildClauses = true
@@ -128,7 +130,7 @@ func (p *processor) Execute(db *DB) *DB {
 	}
 
 	// 核心操作：调用每个语句核心操作和回调
-	// RegisterDefaultCallbacks 加上自定义注册的回调
+	// 详细查看：func RegisterDefaultCallbacks(db *gorm.DB, config *Config) 注册回调
 	for _, f := range p.fns {
 		f(db)
 	}

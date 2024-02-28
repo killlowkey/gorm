@@ -284,6 +284,7 @@ func BuildQuerySQL(db *gorm.DB) {
 
 		db.Statement.AddClauseIfNotExists(clauseSelect)
 
+		// 构建完整的 sql 语句
 		db.Statement.Build(db.Statement.BuildClauses...)
 	}
 }

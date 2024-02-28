@@ -122,11 +122,13 @@ func (db *DB) Save(value interface{}) (tx *DB) {
 
 // First finds the first record ordered by primary key, matching given conditions conds
 // 获取第一条记录，按照主键排序，匹配给定的条件
+// db.Model(&user).First(&result, "id = ? and name = ?", 1, "ray")
 func (db *DB) First(dest interface{}, conds ...interface{}) (tx *DB) {
 	// 按照主键排序且限制一条记录
 	tx = db.Limit(1).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: clause.PrimaryKey},
 	})
+	// 构建条件
 	if len(conds) > 0 {
 		if exprs := tx.Statement.BuildCondition(conds[0], conds[1:]...); len(exprs) > 0 {
 			tx.Statement.AddClause(clause.Where{Exprs: exprs})
@@ -172,6 +174,7 @@ func (db *DB) Last(dest interface{}, conds ...interface{}) (tx *DB) {
 // 获取所有匹配给定条件的记录
 func (db *DB) Find(dest interface{}, conds ...interface{}) (tx *DB) {
 	tx = db.getInstance()
+	// 构建条件
 	if len(conds) > 0 {
 		if exprs := tx.Statement.BuildCondition(conds[0], conds[1:]...); len(exprs) > 0 {
 			tx.Statement.AddClause(clause.Where{Exprs: exprs})

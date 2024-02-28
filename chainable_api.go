@@ -208,7 +208,9 @@ func (db *DB) Omit(columns ...string) (tx *DB) {
 // [docs]: https://gorm.io/docs/query.html#Conditions
 func (db *DB) Where(query interface{}, args ...interface{}) (tx *DB) {
 	tx = db.getInstance()
+	// 构建条件
 	if conds := tx.Statement.BuildCondition(query, args...); len(conds) > 0 {
+		// 添加条件
 		tx.Statement.AddClause(clause.Where{Exprs: conds})
 	}
 	return
@@ -260,6 +262,7 @@ func (db *DB) InnerJoins(query string, args ...interface{}) (tx *DB) {
 func joins(db *DB, joinType clause.JoinType, query string, args ...interface{}) (tx *DB) {
 	tx = db.getInstance()
 
+	// db.Joins("Account", DB.Select("id").Where("user_id = users.id AND name = ?", "someName").Model(&Account{}))
 	if len(args) == 1 {
 		if db, ok := args[0].(*DB); ok {
 			j := join{

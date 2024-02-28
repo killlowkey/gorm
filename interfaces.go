@@ -12,7 +12,7 @@ import (
 type Dialector interface {
 	// Name 数据库驱动名称
 	Name() string
-	// Initialize 初始化数据库连接、方言配置、GORM 配置
+	// Initialize 驱动用于初始化数据库连接、方言配置、GORM 配置
 	Initialize(*DB) error
 	// Migrator 数据库表和字段迁移
 	Migrator(db *DB) Migrator
@@ -22,14 +22,14 @@ type Dialector interface {
 	DefaultValueOf(*schema.Field) clause.Expression
 	// BindVarTo 占位符 select * from user id = ?
 	BindVarTo(writer clause.Writer, stmt *Statement, v interface{})
-	// QuoteTo 写入值
+	// QuoteTo 写入引用值
 	QuoteTo(clause.Writer, string)
 	// Explain 根据 sql 和 var 整合成一条完整 SQL
 	Explain(sql string, vars ...interface{}) string
 }
 
 // Plugin GORM plugin interface
-// GORM 插件接口
+// GORM 插件接口, 一般由驱动实现，用于对数据库进行配置
 type Plugin interface {
 	// Name 插件名称
 	Name() string
@@ -37,6 +37,7 @@ type Plugin interface {
 	Initialize(*DB) error
 }
 
+// ParamsFilter 参数过滤器，用于对参数进行打码（输出到日志或控制台）
 type ParamsFilter interface {
 	ParamsFilter(ctx context.Context, sql string, params ...interface{}) (string, []interface{})
 }
@@ -67,6 +68,7 @@ type SavePointerDialectorInterface interface {
 
 // TxBeginner tx beginner
 type TxBeginner interface {
+	// BeginTx 开启事务
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
@@ -77,7 +79,9 @@ type ConnPoolBeginner interface {
 
 // TxCommitter tx committer
 type TxCommitter interface {
+	// Commit 提交事务
 	Commit() error
+	// Rollback 回滚事务
 	Rollback() error
 }
 

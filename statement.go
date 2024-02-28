@@ -25,9 +25,9 @@ type Statement struct {
 	Table                string      // 表名
 	Model                interface{} // gorm 设置 model
 	Unscoped             bool
-	Dest                 interface{}   // 查询的结果集，只设置了该值，那么 Dest 等价于 Table
-	ReflectValue         reflect.Value // 为 model 或目标值的反射值
-	Clauses              map[string]clause.Clause
+	Dest                 interface{}              // 查询的结果集，只设置了该值，那么 Dest 等价于 Table
+	ReflectValue         reflect.Value            // 为 model 或目标值的反射值
+	Clauses              map[string]clause.Clause // 存储所有的 clause：select、from、where、update 这种
 	BuildClauses         []string
 	Distinct             bool
 	Selects              []string                 // selected columns，选择的列
@@ -78,6 +78,11 @@ func (stmt *Statement) WriteQuoted(value interface{}) {
 }
 
 // QuoteTo write quoted value to writer
+// `: mysql 引用值
+// "：sqlite 引用值
+// "：postgres 引用值
+// "：sqlserver 引用值
+// such as: select * from `user` where `user`.`a` = 10
 func (stmt *Statement) QuoteTo(writer clause.Writer, field interface{}) {
 	write := func(raw bool, str string) {
 		if raw {
@@ -268,6 +273,7 @@ func (stmt *Statement) AddClause(v clause.Interface) {
 		name := v.Name()
 		c := stmt.Clauses[name]
 		c.Name = name
+		// 合并语句
 		v.MergeClause(&c)
 		stmt.Clauses[name] = c
 	}
@@ -282,6 +288,7 @@ func (stmt *Statement) AddClauseIfNotExists(v clause.Interface) {
 
 // BuildCondition build condition
 func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []clause.Expression {
+	// db.Model(&User{}).Where("name = ?", "jinzhu")
 	if s, ok := query.(string); ok {
 		// if it is a number, then treats it as primary key
 		if _, err := strconv.Atoi(s); err != nil {
@@ -321,9 +328,9 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 		}
 
 		switch v := arg.(type) {
-		case clause.Expression:
+		case clause.Expression: // db.Model(&User{}).Where(clause.Eq{Column: "name", Value: "jinzhu"})
 			conds = append(conds, v)
-		case *DB:
+		case *DB: // db.Model(&User{}).Where( db.Model(&User{}).Where("name = ?", "jinzhu") )
 			v.executeScopes()
 
 			if cs, ok := v.Statement.Clauses["WHERE"]; ok && cs.Expression != nil {
@@ -342,11 +349,11 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 					stmt.Statement.Clauses["WHERE"] = cs
 				}
 			}
-		case map[interface{}]interface{}:
+		case map[interface{}]interface{}: // db.Model(&User{}).Where(map[string]interface{}{"name": "jinzhu", "age": 20})
 			for i, j := range v {
 				conds = append(conds, clause.Eq{Column: i, Value: j})
 			}
-		case map[string]string:
+		case map[string]string: // db.Model(&User{}).Where(map[string]string{"name": "jinzhu", "age": "20"})
 			keys := make([]string, 0, len(v))
 			for i := range v {
 				keys = append(keys, i)
@@ -356,7 +363,7 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 			for _, key := range keys {
 				conds = append(conds, clause.Eq{Column: key, Value: v[key]})
 			}
-		case map[string]interface{}:
+		case map[string]interface{}: // db.Model(&User{}).Where(map[string]interface{}{"name": "jinzhu", "age": 20})
 			keys := make([]string, 0, len(v))
 			for i := range v {
 				keys = append(keys, i)
@@ -385,13 +392,16 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 					conds = append(conds, clause.Eq{Column: key, Value: v[key]})
 				}
 			}
-		default:
+		default: // db.Model(&User{}).Where(User{Name: "jinzhu", Age: 20})
 			reflectValue := reflect.Indirect(reflect.ValueOf(arg))
+
+			// 如果是指针类型，那么取其指针指向的值
 			for reflectValue.Kind() == reflect.Ptr {
 				reflectValue = reflectValue.Elem()
 			}
 
 			if s, err := schema.Parse(arg, stmt.DB.cacheStore, stmt.DB.NamingStrategy); err == nil {
+				// 获取选中的列，对于结构体类型，大概率没有选中的列，只能通过判断非空值来判断是否选中
 				selectedColumns := map[string]bool{}
 				if idx == 0 {
 					for _, v := range args[1:] {
@@ -403,12 +413,15 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 				restricted := len(selectedColumns) != 0
 
 				switch reflectValue.Kind() {
+				// 如果是结构体类型，那么解析其字段
 				case reflect.Struct:
+					// 遍历结构体的字段
 					for _, field := range s.Fields {
 						selected := selectedColumns[field.DBName] || selectedColumns[field.Name]
 						if selected || (!restricted && field.Readable) {
+							// 非空值或者选中的列
 							if v, isZero := field.ValueOf(stmt.Context, reflectValue); !isZero || selected {
-								if field.DBName != "" {
+								if field.DBName != "" { // 数据库字段名
 									conds = append(conds, clause.Eq{Column: clause.Column{Table: clause.CurrentTable, Name: field.DBName}, Value: v})
 								} else if field.DataType != "" {
 									conds = append(conds, clause.Eq{Column: clause.Column{Table: clause.CurrentTable, Name: field.Name}, Value: v})
@@ -416,6 +429,7 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 							}
 						}
 					}
+				// 如果是切片或数组类型，那么解析其元素
 				case reflect.Slice, reflect.Array:
 					for i := 0; i < reflectValue.Len(); i++ {
 						for _, field := range s.Fields {
@@ -461,6 +475,7 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 		}
 	}
 
+	// 返回该 where 条件
 	return conds
 }
 
@@ -471,6 +486,10 @@ func (stmt *Statement) Build(clauses ...string) {
 	// 遍历所有 clauses，调用其 build 方法
 	for _, name := range clauses {
 		if c, ok := stmt.Clauses[name]; ok {
+			// 语句与语句之间需要空格分隔
+			// select *
+			// from user
+			// select * from user
 			if firstClauseWritten {
 				stmt.WriteByte(' ')
 			}
@@ -479,6 +498,7 @@ func (stmt *Statement) Build(clauses ...string) {
 			if b, ok := stmt.DB.ClauseBuilders[name]; ok {
 				b(c, stmt)
 			} else {
+				// 调用对应的 clause 的 build 方法，将 SQL 语句写入到 stmt.SQL 中
 				c.Build(stmt)
 			}
 		}

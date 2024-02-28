@@ -132,6 +132,7 @@ const (
 )
 
 // Scan scan rows into db statement
+// 将查询结果扫描到 db.Statement.Dest 中
 func Scan(rows Rows, db *DB, mode ScanMode) {
 	var (
 		columns, _          = rows.Columns()
@@ -144,7 +145,7 @@ func Scan(rows Rows, db *DB, mode ScanMode) {
 	db.RowsAffected = 0
 
 	switch dest := db.Statement.Dest.(type) {
-	case map[string]interface{}, *map[string]interface{}:
+	case map[string]interface{}, *map[string]interface{}: // map 类型：db.Model(&User{}).Where("name = ?", "jinzhu").find(&result)
 		if initialized || rows.Next() {
 			columnTypes, _ := rows.ColumnTypes()
 			prepareValues(values, db, columnTypes, columns)
@@ -163,7 +164,7 @@ func Scan(rows Rows, db *DB, mode ScanMode) {
 			}
 			scanIntoMap(mapValue, values, columns)
 		}
-	case *[]map[string]interface{}:
+	case *[]map[string]interface{}: // []map 类型：db.Model(&User{}).Where("name = ?", "jinzhu").find(&result)
 		columnTypes, _ := rows.ColumnTypes()
 		for initialized || rows.Next() {
 			prepareValues(values, db, columnTypes, columns)
@@ -187,7 +188,7 @@ func Scan(rows Rows, db *DB, mode ScanMode) {
 			db.RowsAffected++
 			db.AddError(rows.Scan(dest))
 		}
-	default:
+	default: // struct、array、Ptr
 		var (
 			fields       = make([]*schema.Field, len(columns))
 			joinFields   [][]*schema.Field

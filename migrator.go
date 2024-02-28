@@ -33,43 +33,43 @@ type ViewOption struct {
 
 // ColumnType column type interface
 type ColumnType interface {
-	Name() string
-	DatabaseTypeName() string                 // varchar
-	ColumnType() (columnType string, ok bool) // varchar(64)
-	PrimaryKey() (isPrimaryKey bool, ok bool)
-	AutoIncrement() (isAutoIncrement bool, ok bool)
-	Length() (length int64, ok bool)
-	DecimalSize() (precision int64, scale int64, ok bool)
-	Nullable() (nullable bool, ok bool)
-	Unique() (unique bool, ok bool)
-	ScanType() reflect.Type
-	Comment() (value string, ok bool)
-	DefaultValue() (value string, ok bool)
+	Name() string                                         // 字段名称
+	DatabaseTypeName() string                             // varchar
+	ColumnType() (columnType string, ok bool)             // varchar(64)
+	PrimaryKey() (isPrimaryKey bool, ok bool)             // 是否主键
+	AutoIncrement() (isAutoIncrement bool, ok bool)       // 是否自增
+	Length() (length int64, ok bool)                      // 字段长度
+	DecimalSize() (precision int64, scale int64, ok bool) // decimal(10,2)
+	Nullable() (nullable bool, ok bool)                   // 是否允许为空
+	Unique() (unique bool, ok bool)                       // 是否唯一
+	ScanType() reflect.Type                               // 数据库字段类型对应的 Go 类型
+	Comment() (value string, ok bool)                     // 字段注释
+	DefaultValue() (value string, ok bool)                // 默认值
 }
 
 type Index interface {
-	Table() string
-	Name() string
-	Columns() []string
-	PrimaryKey() (isPrimaryKey bool, ok bool)
-	Unique() (unique bool, ok bool)
-	Option() string
+	Table() string                            // 表名
+	Name() string                             // 索引名称
+	Columns() []string                        // 索引字段
+	PrimaryKey() (isPrimaryKey bool, ok bool) // 是否主键
+	Unique() (unique bool, ok bool)           // 是否唯一
+	Option() string                           // 索引选项
 }
 
 // TableType table type interface
 type TableType interface {
-	Schema() string
-	Name() string
-	Type() string
-	Comment() (comment string, ok bool)
+	Schema() string                     // Schema
+	Name() string                       // Table name
+	Type() string                       // Table type
+	Comment() (comment string, ok bool) // Table comment
 }
 
 // Migrator migrator interface
 type Migrator interface {
-	// AutoMigrate
+	// AutoMigrate 迁移
 	AutoMigrate(dst ...interface{}) error
 
-	// Database
+	// Database 操作
 	CurrentDatabase() string
 	FullDataTypeOf(*schema.Field) clause.Expr
 	GetTypeAliases(databaseTypeName string) []string
